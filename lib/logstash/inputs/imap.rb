@@ -72,7 +72,6 @@ class LogStash::Inputs::IMAP < LogStash::Inputs::Base
       @logger.info("Loading \"uid_last_value\": \"#{@uid_last_value}\"")
     end
 
-    @content_type_re = Regexp.new("^" + @content_type)
   end # def register
 
   def connect
@@ -149,19 +148,6 @@ class LogStash::Inputs::IMAP < LogStash::Inputs::Base
     end
   end
 
-  def find_content(parts, found=nil)
-    return found if found
-    if parts.parts.count > 0
-      parts.parts.each do |part|
-        found = find_content(part)
-        return found if found
-      end
-    elsif parts.content_type.match @content_type_re
-      return parts.decoded
-    end
-    return nil
-  end
-
   def parse_mail(mail)
     # Add a debug message so we can track what message might cause an error later
     @logger.debug? && @logger.debug("Working with message_id", :message_id => mail.message_id)
@@ -171,8 +157,12 @@ class LogStash::Inputs::IMAP < LogStash::Inputs::Base
       # No multipart message, just use the body as the event text
       message = mail.body.decoded
     else
-      # Recursively search for the content-type we want
-      message = find_content(mail.parts)
+      part = mail.find_first_mime_type(@content_type) || mail.parts.first
+      begin
+           message = part.decoded
+      rescue NoMethodError
+           message = mail.body.decoded
+      end
     end
 
     @codec.decode(message) do |event|
