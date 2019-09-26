@@ -157,7 +157,7 @@ class LogStash::Inputs::IMAP < LogStash::Inputs::Base
       # No multipart message, just use the body as the event text
       message = mail.body.decoded
     else
-      part = mail.find_first_mime_type(@content_type) || mail.parts.first
+      part = mail.all_parts.detect { |p| p.mime_type == @content_type } || mail.parts.first
       begin
            message = part.decoded
       rescue NoMethodError
