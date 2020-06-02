@@ -73,7 +73,6 @@ class LogStash::Inputs::IMAP < LogStash::Inputs::Base
       @logger.info("Loading \"uid_last_value\": \"#{@uid_last_value}\"")
     end
 
-    @content_type_re = Regexp.new("^" + @content_type)
   end # def register
 
   def connect
@@ -172,11 +171,15 @@ class LogStash::Inputs::IMAP < LogStash::Inputs::Base
       message = mail.body.decoded
     else
       # Multipart message; use the first text/plain part we find
-      part = mail.parts.find { |p| p.content_type.match @content_type_re } || mail.parts.first
-      message = part.decoded
-
+      part = mail.all_parts.detect { |p| p.mime_type == @content_type } || mail.parts.first
+      begin
+           message = part.decoded
+      rescue NoMethodError
+           message = mail.body.decoded
+      end
+      
       # Parse attachments
-      attachments = parse_attachments(mail)
+      attachments = parse_attachments(mail)    
     end
 
     @codec.decode(message) do |event|
